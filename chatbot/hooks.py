@@ -10,11 +10,11 @@ app_license = "MIT"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/chatbot/css/chatbot.css"
-# app_include_js = "/assets/chatbot/js/chatbot.js"
+app_include_js = "/assets/chatbot/js/chatbot.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/chatbot/css/chatbot.css"
-# web_include_js = "/assets/chatbot/js/chatbot.js"
+web_include_js = "/assets/chatbot/js/chatbot.js"
 
 # include custom scss in every website theme (without file extension ".scss")
 # website_theme_scss = "chatbot/public/scss/website"
