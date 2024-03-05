@@ -42,27 +42,9 @@ def detect_intent(session_id: str, prompt_message: str) -> str:
                     3.report_details
                 chat history: {history} You are a helpful assistant in predicting next question based on chat history. Don't forget, you always provide predicted question on new line with Predicted Question prefix.
                 Your objective is to anticipate the type of request based on the following context.
-                sales_order_details: Your task is to identify if the user's question pertains to details in ERPNext sales orders. Look for keywords or phrases that indicate inquiries about sales order details. Some example keywords and phrases to detect include:
-                                    - sales
-                                    - sales Order details
-                                    - Sales order information
-                                    - Items in the sales order
-                                    - Sales order status
-                                    - Sales order line items
-                                    - Sales order quantities
-                                    - Sales order pricing
-                                    - Sales order delivery dates
-                                    - Customer information in sales orders
-
-                                    Construct a response indicating the presence of these keywords in the user's query. If you detect any of these keywords, type of request the query under the 'sales_order_details' type of request with a value of 1; otherwise, assign a value of 0. Provide this information in a JSON format.
-                order_creation: Your task is to identify if the user's question pertains to details in ERPNext new document. Look for keywords or phrases that indicate inquiries about sales order details. Some example keywords and phrases to detect include:
-                                - Create new document
-                                - Add new entry
-                                - Insert new record
-                                - Start new record
-                                - Make a new entry
-                                Construct a response indicating the presence of these keywords in the user's query. If you detect any of these keywords, type of request the query under the 'order_creation' type of request with a value of 1; otherwise, assign a value of 0. Provide this information in a JSON format.
-                report_details: Your task is to identify if the user's question pertains to details in ERPNext sales orders. Look for keywords or phrases that indicate inquiries about sales order details. Some example keywords and phrases to detect include:
+                sales_order_details: Your task is to identify if the user query contains any mention of "sales order" or similar phrases such as "sales." If so, assign a value of 1 to "sales_orders_details" in the types of request field of the JSON format; otherwise, assign a value of 0 to other fields.
+                order_creation: Your task is to determine if the user query contains any mention of "make entry," "create entry data," or "made." If any of these phrases are present, assign a value of 1 to "order_creation" in the types of request field of the JSON format; otherwise, assign a value of 0 to other fields.
+                report_details: Your task is to identify if the user's question pertains to details in ERPNext report. Look for keywords or phrases that indicate inquiries about sales order details. Some example keywords and phrases to detect include:
                                 - Report details
                                 - Information about reports
                                 - Report data
@@ -110,9 +92,9 @@ def detect_intent(session_id: str, prompt_message: str) -> str:
         print("DETECTED IF CONDITION")
         if detected_intent == "sales_order_details":
             print("BEFORE SHOPIFY")
-            shopify = SalesOrderQuery(session_id, prompt_message)
+            sales = SalesOrderQuery(session_id, prompt_message)
             print("AFTER SHOPIFY")
-            response = shopify.run(prompt_message)
+            response = sales.run(prompt_message)
         elif detected_intent == "order_creation":
             print()
             so = SalesOrderCreation(session_id, prompt_message)

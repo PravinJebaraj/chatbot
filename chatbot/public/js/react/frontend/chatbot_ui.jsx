@@ -43,7 +43,7 @@ const ChatbotView = ({ sessionID }) => {
     setPromptMessage("");
 
     frappe
-      .call("chatbot.public.js.react.backend.chatbot_details.detect_intent", {
+      .call("chatbot.public.js.react.backend.backend_router.get_response_as_per_role", {
         prompt_message: promptMessage,
         session_id: sessionID,
       })
