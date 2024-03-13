@@ -9,12 +9,8 @@ from langchain import OpenAI, SQLDatabase, SQLDatabaseChain
 
 @frappe.whitelist()
 def get_response_as_per_role(session_id: str, prompt_message: str) -> str:
-    frappe.errprint("Chatbot Backend router")
-    frappe.errprint(session_id)
-    frappe.errprint(prompt_message)
-    response = get_chatbot_responses(session_id,prompt_message)
     ConversationBufferMemory().chat_memory.add_user_message(prompt_message)
+    response = get_chatbot_responses(session_id,prompt_message)
     ConversationBufferMemory().chat_memory.add_ai_message(response)
-    frappe.errprint('response')
     return response
     

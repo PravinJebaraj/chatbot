@@ -11,7 +11,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { SendIcon } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Message from "../components/message/Message";
 
 const ChatbotView = ({ sessionID }) => {
@@ -29,6 +29,16 @@ const ChatbotView = ({ sessionID }) => {
       content: "How can I help you?",
     },
   ]);
+
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const handleSendMessage = () => {
     if (!promptMessage.trim().length) {
@@ -48,14 +58,14 @@ const ChatbotView = ({ sessionID }) => {
         session_id: sessionID,
       })
       .then((response) => {
-        setMessages((old) => {
-          old.splice(old.length - 1, 1, {
+        setMessages((old) => [
+          ...old.slice(0, old.length - 1),
+          {
             from: "ai",
             content: response.message,
             isLoading: false,
-          });
-          return [...old];
-        });
+          },
+        ]);
       })
       .catch((e) => {
         console.error(e);
@@ -72,7 +82,7 @@ const ChatbotView = ({ sessionID }) => {
       direction={"column"}
       height={"77vh"}
       width={"100%"}
-      maxWidth={"4xl"}
+      // maxWidth={"4xl"}
       mx={"auto"}
     >
       <Text fontSize="xl" fontWeight={"bold"} textColor={"gray.700"}></Text>
@@ -86,9 +96,10 @@ const ChatbotView = ({ sessionID }) => {
         backgroundColor={"white"}
       >
         <VStack spacing={2} align="stretch" p={"2"}>
-          {messages.map((message) => {
-            return <Message key={message.content} message={message} />;
-          })}
+          {messages.map((message, index) => (
+            <Message key={index} message={message} />
+          ))}
+          <div ref={messagesEndRef} />
         </VStack>
       </Box>
 
@@ -99,14 +110,15 @@ const ChatbotView = ({ sessionID }) => {
             <Avatar name={userFullname} size={"sm"} src={userImageURL} />
             {/* Input Box */}
             <Textarea
+              whiteSpace="pre-line"
               value={promptMessage}
               onChange={(event) => setPromptMessage(event.target.value)}
               onKeyDown={(event) => {
-                if ((event.charCode || event.keyCode) === 13) {
+                if (((event.charCode || event.keyCode) === 13) && !event.shiftKey) {
                   event.preventDefault();
                   handleSendMessage();
                   setPromptMessage("");
-                 }
+                }
               }}
               placeholder="Type your message here..."
             />
