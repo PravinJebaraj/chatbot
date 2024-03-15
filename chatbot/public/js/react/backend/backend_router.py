@@ -3,8 +3,9 @@ from langchain.llms import OpenAI
 from langchain.memory import RedisChatMessageHistory, ConversationBufferMemory
 from langchain.chains import ConversationChain
 from langchain.prompts import PromptTemplate
-from chatbot.public.js.react.backend.sales_person_helper import get_chatbot_responses
+# from chatbot.public.js.react.backend.sales_person_helper import get_chatbot_responses
 from langchain import OpenAI, SQLDatabase, SQLDatabaseChain
+from chatbot.public.js.react.backend.sales_details import get_chatbot_responses
 
 
 @frappe.whitelist()

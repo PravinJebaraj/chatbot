@@ -6,140 +6,151 @@ from langchain.prompts import MessagesPlaceholder
 from langchain.schema import SystemMessage
 from langchain.llms import OpenAI
 import json
-import re
-from datetime import datetime
+import calendar
+from frappe.model.meta import get_meta
 
 
-opeai_api_key = frappe.conf.get("openai_api_key")
-
-class SalesOrderQuery:
-    
+OpenAI_api_key = frappe.conf.get("openai_api_key")
 
 
+class ItemQuery:
 
-
-class SalesOrderQuerys:
-    def __init__(self, session_id, prompt_message):
-        meta = frappe.get_meta("Sales Order")
-        field_label = [field.label for field in meta.fields if field.label is not None]
-        field_labels = ', '.join(field_label)
-        sales_channel_details = frappe.db.get_all("UPRO Sales Channel", "name")
-        sales_channel_details = [sales_channel['name'] for sales_channel in sales_channel_details]
-        sales_channels = ', '.join(sales_channel_details)
-        territorys = frappe.db.get_all("Territory", "name")
-        territory_details = [territory['name'] for territory in territorys]
-        territory_details = ', '.join(territory_details)
-        print("Territory system data----",territory_details)
+    def __init__(self, session_id):
         self.agent_kwargs = {
             "extra_prompt_messages": [MessagesPlaceholder(variable_name="chat_history")],
-            "system_message": SystemMessage(content=f"""
-            As a friendly bot assisting a salesperson, your task is to adhere to specific instructions while delivering helpful and positive responses.Your responsibility entails running the designated tool and utilizing its output to provide the accurate outcome.\
-            {field_labels} If the value in this is then the method in the tool must provide the value in JSON format
+            "system_message":
+            SystemMessage(content="""
+            You are a friendly sales person helper bot who stricly runs on instructions and provide accurate results by performing the actions. Your name is `ERPNext Sales Copilot`. Your Task is to execute the provided tools and provide the results from the response of tools. \
+                          
+            Provide your introduction in short summary.\
+                          
+            While answering to each user input you have to follow this instructions.
+            -Step 1: Classify the user input in below provided 'task lists'. If you can't find any matching task from the lists, reply 'I can not answer this'.\
+            -Step 2: Follow the instructions provided in each tasks and after excuting the functions mentioned in the instruction to get data from system.\
+            -Step 3: Analyse the data returned from the function and give reply in detail.\
             
-            Please provide a pleasant overview of yourself in your role as a salesperson.\
-            
-            When interacting with users, ensure to adhere to the provided instructions for each response.
-            -Step 1: Categorize the user input into the provided 'task lists' below. If no matching task is found, respond with 'I cannot answer this'.\
-            -Step 2: Ensure the proper execution of the function specified in the task list according to the provided instructions. When running the function via the tool, format the arguments into a dictionary. Retrieve and execute the data from the system through that function.\
-            -Step 3: Thoroughly analyze the data retrieved from the function and make an informed decision. Provide a polite and suitable response based on the user's input.\
+            Below is your 'task list' and step you need to follow to accomplish each task.\
+                        
+            1) Provide item revenue information: In this task you will provide the information about revenue of an item. You need to use `GetRevenueItemWise` for this task.\ 
+                                    
+            Things to consider while replying :
+            - Ensure you have all necessary information required for the selected function, and adhere strictly to the function's guidelines. Proper execution depends on this level of detail and accuracy. 
+            - System currency is INR so provide the details accordingly.
+            - Outstanding details are different from sales analysis.
 
-            Listed below are all the tasks you are required to complete. Ensure to carefully follow the instructions provided for each task in order to successfully accomplish them all.
-            1. Please furnish information regarding sales orders : This task involves providing the user with information about the sales order transaction. Before proceeding with this action, you must have at least one of the details in {field_labels} from the user. If any of these details are missing, refrain from performing this action. It should only be executed after obtaining at least one of the required details from the user. To carry out this operation, you are required to utilize the `GetSalesDetail`. When requiring `GetSalesDetail` in the tool, the argument must be in JSON format. When employing this, ensure that when executing the function through the tool provide this information in a JSON format., the value is transmitted as a dictionary to the function's arguments. If the user provides any date, month, or year to the function, it should be formatted as yyyy-mm-dd and passed as an argument in the dictionary. If the user only provides a date, month, or year individually, use the current date, year, and month. Provide this information in a JSON format.
-            2) Provide region wise sales info :In this task you will first execute the function `GetRegionWiseSalesDetails` and from the results provide the region wise sales detail. Remember don't use your knowledge to answer this question,the answer is strictly from function response.To perform this action you will need 1 detail from user which is <region>'. To carry out this operation, you are required to utilize the `GetRegionWiseSalesDetails`. When requiring `GetRegionWiseSalesDetails` in the tool, the argument must be in JSON format. When employing this, ensure that when executing the function through the tool provide this information in a JSON format., the value is transmitted as a dictionary to the function's arguments.
+            Caution : You have to execute function for each request, Do not hallucinate anything from previous results.     
+            """)
 
-            Factors to keep in mind when crafting a response:
-            -Verify that you possess all essential information necessary for the chosen function, and strictly adhere to its guidelines. The accuracy and effectiveness of execution rely on this meticulous attention to detail.
-            -Note that the system currency is USD, so ensure that all details provided are in accordance with this currency.
-
-            Caution: When executing the function for each request, it's crucial to respond by considering the previous request as an object and providing a response accordingly. Disregard any requests and responses prior to the current one unless the current request is unrelated to the previous one and its response. Provide this information in a JSON format.""")
         }
+
+        # Initialize a language learning model (LLM) using the ChatOpenAI model with the OpenAI API key and specific
+        # parameters
         message_history = RedisChatMessageHistory(
             session_id=session_id,
             url=frappe.conf.get("redis_cache") or "redis://localhost:6379/0",
+
         )
         self.memory = ConversationBufferMemory(
-            memory_key="history", chat_memory=message_history)
-        self.llm = OpenAI(model_name="gpt-3.5-turbo-0613",
-                          temperature=0, openai_api_key=opeai_api_key)
+            memory_key="chat_history",
+            return_messages=True,
+            chat_memory=message_history,
+        )
+        # self.memory = ConversationSummaryBufferMemory(
+        #     llm=OpenAI(openai_api_key=OpenAI_api_key,model_name='gpt-3.5-turbo-0613'),memory_key="chat_history", max_token_limit=10, return_messages=True,chat_memory = message_history,
+        # )
+        self.memory.load_memory_variables({})
+
+        self.llm = ChatOpenAI(
+            openai_api_key=OpenAI_api_key,
+            temperature=0.0,
+            model_name='gpt-4-1106-preview'
+        )
+
+        sales_channel_details = frappe.db.sql_list("select name from `tabUPRO Sales Channel`")
+        sales_channels = ', '.join(sales_channel_details)
+        item_codes_details = frappe.db.sql_list("select name from `tabItem` limit 10")
+        item_codes = ', '.join(item_codes_details)
+        customer_details = frappe.db.sql_list("select name from `tabCustomer`")
+        customers = ', '.join(customer_details)
+        warehouse_details = frappe.db.sql_list("select name from `tabWarehouse`")
+        warehouses = ', '.join(warehouse_details)
+        sales_invoice_fields = self.get_doctype_fields_name("Sales Invoice")
+        sales_invoice_item_fields = self.get_doctype_fields_name("Sales Invoice Item")
+
+        # Define a list of tools for the agent. Here, we only have "CreateSalesOrder","CreateSalesVisit","CheckStockAvailibility" tool that
         self.tools = [
             Tool(
-                name="GetSalesDetail",
-                func=self.get_sales_details,
-                description=f"""
-                            Description: This GetSalesDetail function is used to retrieve the sales order details from the database. Here's what you need to know
-                            need: 
-                            1.The value should adhere to the JSON format.
-                            It is important to remember that the input should be formatted as a JSON format, not a list or multiple strings or a single string.
-                            If there is any value in {sales_channels} then it should be taken as key in JSON format as sales_channel. It should not come with any other key except this sales_channel key.
-                            A word of caution: if any information is unclear, incomplete, or not confirmed, the function might not work correctly.
-                            """
-            ),
-            Tool(
-                name="GetRegionWiseSalesDetails",
-                func=self.get_regionwise_sales_details,
+                name = "GetRevenueItemWise",
+                func = self.get_revenue_item_wise,
                 description="""
-                Description: The 'GetRegionWiseSalesDetails' function to get details of regionwise sales. Here's what you 
-                need:
+                Description: The 'GetRevenueItemWise' function to get details for the revenue generated by items. Here's what you need to do
+                    1. For this function you need to create a query for the question asked by the user and give it as a argument.
+                    2. When creating this query, you should take the table `tabSales Invoice' and set the align name to `si' and the table `tabSales Invoice Item' and set the align name to `sii'. 
+                    3. All of the following are columns for the `tabSales Invoice` table. If user gives below columns then it should be taken in the query select.
+                        %s 
+                    4. All of the following are columns for the `tabSales Invoice Item` table. If user gives below columns then it should be taken in the select.
+                        %s
+                    
+                    5. If user gives %s then it should be taken as up_sales_channel in where condition.
+                    6. If user gives %s then it should be taken as item_code in where condition.
+                    7. If user gives %s then it should be taken as customer in where condition.
+                    8. If user gives %s then it should be taken as set_warehouse in where condition.
+                    9. Must take si.territory and si.up_sales_channel in group by. If asked item wise then add sii.item_code also in the group by along with si.territory and si.up_sales_channel.
+                        sii.item_code must not be added in the query column if the user asks for sales channel wise. If asked customer wise, you must add si.customer in group by with the already existing group by in the query.
+                        If asked warehouse wise, you must add si.set_warehouse in group by with the already existing group by in the query.
+                    10. If user gives any date then it should be given in query as si.posting_date in where condition or if user gives month as name or month name as short then that month should be converted to number and given as month(si.posting_date) in condition. And if year is also given then it should be given in year(si.posting_date) in condition.
+                        If user ask for year and month, don't give condition in si.posting_date.
+                    11. If the user asks for item wise details then you should ask user for input as to which items are required and then give the query in the argument.
+                    12. In the query, the column should be given according to the question asked by the user
+                    13. Argument should be given to function only as query.
 
-                1. A JSON in the format:.
-
-                An example function input for an order might look like: 
-                It is important to remember that the input should be formatted as a properly parsed JSON.
-                If you are not able to retrieve territory and sales_channel give null value in the JSON.
-                If you are not able to retrieve territory you set the territory value is null and able to retrieve sales_channel give sales channel value in the JSON.
-                If you are able to retrieve territory you set territory value and not able to retrieve sales_channel give the null value in the JSON.
-                Don't assume territory and sales_channel if the user has not mentioned
-
-                A word of caution: if any information is unclear, incomplete, or not confirmed, the function might 
-                not work correctly.
-
-                """
+                    A word of caution: if any information is unclear, incomplete, or not confirmed, the function mightss
+                    not work correctly.
+                
+                    """%(sales_invoice_fields, sales_invoice_item_fields, sales_channels, item_codes, customers, warehouses)
             )
-                ]
-        self.agent = initialize_agent(
+        ]
+        self.agent = self.initialize_agent()
+
+    def initialize_agent(self):
+        # Initialize the agent with the tools, language learning model, and other settings defined above
+        agent = initialize_agent(
             tools=self.tools,
             llm=self.llm,
-            # agent=AgentType.OPENAI_FUNCTIONS,
+            agent=AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
             verbose=True,
             memory=self.memory,
             agent_kwargs=self.agent_kwargs,
             max_iterations=10)
+        return agent
 
-    def get_sales_details(self, sales_order_details):
-        sales_order_details = sales_order_details
-        if isinstance(sales_order_details, str):
-            pattern = pattern = r"\{[^{}]*\}"
-            json_matches = re.findall(pattern, sales_order_details)
-            json_str = json_matches[0]
-            print("Extracted JSON string:")
-            print(json_str)
-            print("Json MAtches-------",json_matches)
-            sales_order_details = json.loads(json_str)
-            print("INdent categories-----",sales_order_details)
-        date = datetime.strptime(sales_order_details['date'], "%Y-%m-%d").strftime("%Y-%m-%d")
-        sales_channel = sales_order_details['sales_channel']
-        sales_channel = frappe.get_value(
-            "UPRO Sales Channel", {"name": sales_channel}, "name")
-        # if sales_channel is None or sales_channel == "":
-        #     return "Can you give the sales channel for it?"
-        if sales_channel and sales_channel != "":
-            condition = f"""where up_sales_channel = '{sales_channel}'"""
-        if sales_channel and date:
-            condition = f"where up_sales_channel = '{sales_channel}' and transaction_date = '{date}'"
-        if date and not sales_channel:
-            condition = f"where transaction_date = '{date}'"
-        print("HELLo")
-        print("QUERY-----",f"""select count(name) as so_count from `tabSales Order` {condition} """)
-        print("HELLO2")
-        sales_data = frappe.db.sql(
-            """select count(name) as so_count from `tabSales Order` %s """ % (condition), as_dict=True)
-        print("DB RESPONSE----",sales_data)
-        return sales_data[0]['so_count']
+    def get_revenue_item_wise(self, query: str):
+        print("Query------",query)
+        sales_data = frappe.db.sql("""%s"""%(query), as_dict=1)
+        return f"""
+        Below are the details of region wise sales orders for sales channel, analyse this and provide the information as per user query.\n
+        {sales_data}
+        # """
+
+    def run(self, userinput):
+        return self.agent.run(userinput)
     
-    def get_regionwise_sales_details(self, territory_details):
-        print("Territory Detailsxxxxx-----",territory_details)
-        # sales_by_region = frappe.get_all("Sales Order", fields=["territory", "count(*) as total_sales"], group_by="territory")
-        # print(sales_by_region)
+    def get_doctype_fields_name(self, doctype):
+        doctype_fields = get_meta(doctype)
+        fields = [field.fieldname for field in doctype_fields.fields]
+        doctype_fields = ', '.join(fields)
 
-    def run(self, user_input):
-        return self.agent.run(user_input)
+
+@frappe.whitelist()
+def get_chatbot_responses(session_id: str, prompt_message: str) -> str:
+    bot = ItemQuery(session_id)
+    user_input = prompt_message
+    if not user_input:
+        return 'No input provided'
+    return bot.run(user_input)
+
+
+def run_bot():
+    while True:
+        userinput = input("Input:")
+        get_chatbot_responses("555", userinput)

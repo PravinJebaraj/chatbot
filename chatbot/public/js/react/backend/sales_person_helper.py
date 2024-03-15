@@ -247,7 +247,7 @@ class ItemQuery:
     def get_price_details(self, price_inquiry_string):
         item = price_inquiry_string.strip()
         sql_data = frappe.db.sql(
-            """SELECT ip.item_code,ip.item_name,ip.price_list_rate FROM `tabItem Price` ip WHERE ip.item_code like %s and ip.selling = 1""", ('%' + item + '%'), as_dict=1)
+            """SELECT ip.item_code,ip.item_name,ip.price_list,ip.price_list_rate FROM `tabItem Price` ip WHERE ip.item_code like %s and ip.selling = 1""", ('%' + item + '%'), as_dict=1)
 
         return f"""
         Below are the details of price from the system, analyse this and provide the information as per user query.\n
@@ -396,7 +396,7 @@ class ItemQuery:
             sales_data = frappe.db.sql("""
                 SELECT si.territory, si.up_sales_channel, sii.item_code, sum(sii.amount) AS total_amount
                 FROM `tabSales Invoice` si INNER JOIN `tabSales Invoice Item` sii ON si.name = sii.parent
-                WHERE si.docstatus = 1 %sgroup by si.up_sales_channel, sii.item_code
+                WHERE si.docstatus = 1 %sgroup by si.territory, si.up_sales_channel, sii.item_code
             """%(conditions), as_dict=True) 
             # print("SALES DATA-------", sales_data)       
             return f"""
